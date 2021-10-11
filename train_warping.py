@@ -28,6 +28,8 @@ import copy
 
 from torch_ema import ExponentialMovingAverage
 
+from renderer import Renderer
+
 def setup(rank, world_size, port):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = port
@@ -57,6 +59,17 @@ def z_sampler(shape, device, dist):
         z = torch.rand(shape, device=device) * 2 - 1
     return z
 
+def photometric_loss(im1, im2, mask=None, conf_sigma=None):
+    EPS = 1e-7
+    loss = (im1-im2).abs()
+    if conf_sigma is not None:
+        loss = loss *2**0.5 / (conf_sigma +EPS) + (conf_sigma +EPS).log()
+    if mask is not None:
+        mask = mask.expand_as(loss)
+        loss = (loss * mask).sum() / mask.sum()
+    else:
+        loss = loss.mean()
+    return loss
 
 def train(rank, world_size, opt):
     torch.manual_seed(0)
@@ -66,6 +79,7 @@ def train(rank, world_size, opt):
 
 
     curriculum = getattr(curriculums, opt.curriculum)
+    curriculum['device'] = device
     metadata = curriculums.extract_metadata(curriculum, 0)
 
     fixed_z = z_sampler((25, 256), device='cpu', dist=metadata['z_dist'])
@@ -146,6 +160,8 @@ def train(rank, world_size, opt):
         total_progress_bar.update(1)
 
         metadata = curriculums.extract_metadata(curriculum, discriminator.step)
+        curriculum['img_size'] = metadata['img_size']
+        renderer = Renderer(curriculum)
 
         # Set learning rates
         for param_group in optimizer_G.param_groups:
@@ -260,7 +276,7 @@ def train(rank, world_size, opt):
             for split in range(metadata['batch_split']):
                 with torch.cuda.amp.autocast():
                     subset_z = z[split * split_batch_size:(split+1) * split_batch_size]
-                    gen_imgs, gen_positions = generator_ddp(subset_z, **metadata)
+                    gen_imgs, gen_depths, gen_positions = generator_ddp(subset_z, render_depth=True, render_cannon=True, **metadata)
                     g_preds, g_pred_latent, g_pred_position = discriminator_ddp(gen_imgs, alpha, **metadata)
 
                     topk_percentage = max(0.99 ** (discriminator.step/metadata['topk_interval']), metadata['topk_v']) if 'topk_interval' in metadata and 'topk_v' in metadata else 1
@@ -274,8 +290,17 @@ def train(rank, world_size, opt):
                         identity_penalty = latent_penalty + position_penalty
                     else:
                         identity_penalty = 0
+                    # warping loss
 
-                    g_loss = torch.nn.functional.softplus(-g_preds).mean() + identity_penalty
+
+                    warping_pos = -(gen_positions[:split_batch_size] - gen_positions[split_batch_size:])
+                    renderer.render_h_v(gen_imgs[split_batch_size:], gen_depths[split_batch_size:], warping_pos)
+                    warped_images, warped_depth = renderer.render_h_v(gen_imgs[split_batch_size:], gen_depths[split_batch_size:], warping_pos)
+                    margin = (curriculum['ray_end'] - curriculum['ray_start']) / 2
+                    recon_mask = (warped_depth < curriculum['ray_end'] + margin)
+                    loss_l1_im = photometric_loss(warped_images, gen_imgs[:split_batch_size], mask=recon_mask)
+
+                    g_loss = torch.nn.functional.softplus(-g_preds).mean() + identity_penalty + loss_l1_im
                     generator_losses.append(g_loss.item())
 
                 scaler.scale(g_loss).backward()
@@ -359,12 +384,12 @@ def train(rank, world_size, opt):
                 generated_dir = os.path.join(opt.output_dir, 'evaluation/generated')
 
                 if rank == 0:
-                    fid_evaluation.setup_evaluation(metadata['dataset'], metadata['dataset_path'], generated_dir, target_size=128)
+                    fid_evaluation.setup_evaluation(metadata['dataset'], generated_dir, target_size=128)
                 dist.barrier()
                 ema.store(generator_ddp.parameters())
                 ema.copy_to(generator_ddp.parameters())
                 generator_ddp.eval()
-                fid_evaluation.output_images(generator_ddp, metadata, rank, world_size, generated_dir, num_imgs=opt.num_imgs)
+                fid_evaluation.output_images(generator_ddp, metadata, rank, world_size, generated_dir)
                 ema.restore(generator_ddp.parameters())
                 dist.barrier()
                 if rank == 0:
@@ -388,10 +413,9 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='debug')
     parser.add_argument('--load_dir', type=str, default='')
     parser.add_argument('--curriculum', type=str, required=True)
-    parser.add_argument('--eval_freq', type=int, default=0)
+    parser.add_argument('--eval_freq', type=int, default=5000)
     parser.add_argument('--port', type=str, default='12355')
     parser.add_argument('--set_step', type=int, default=None)
-    parser.add_argument('--num_imgs', type=int, default=2048)
     parser.add_argument('--model_save_interval', type=int, default=5000)
     parser.add_argument('--gpu_ids', type=str, default='0')
 

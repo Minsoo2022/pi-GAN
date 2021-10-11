@@ -174,7 +174,46 @@ class ImplicitGenerator3d(nn.Module):
                     transformed_ray_directions_expanded[..., -1] = -1
 
                 # Sequentially evaluate siren with max_batch_size to avoid OOM
+                fine_normal = torch.zeros((batch_size, fine_points.shape[1], 4), device=self.device)
+
+                with torch.enable_grad():
+                    for parameter in self.siren.parameters():
+                        parameter.requires_grad = False
+
+                    for b in range(batch_size):
+                        head = 0
+                        while head < fine_points.shape[1]:
+                            tail = head + max_batch_size
+                            fine_points_temp = fine_points[b:b+1, head:tail].clone().detach_().requires_grad_(True)
+                            truncated_frequencies_temp = truncated_frequencies[b:b+1].detach()
+                            truncated_phase_shifts_temp = truncated_phase_shifts[b:b + 1].detach()
+                            transformed_ray_directions_expanded_temp = transformed_ray_directions_expanded[b:b + 1, head:tail].detach()
+
+                            fine_output_temp = self.siren.forward_with_frequencies_phase_shifts(fine_points_temp, truncated_frequencies_temp, truncated_phase_shifts_temp, ray_directions=transformed_ray_directions_expanded_temp)
+                            fine_output_temp[..., 3].backward(torch.ones_like(fine_output_temp[..., -1]))
+                            fine_normal[b:b+1, head:tail, :3] = -nn.functional.normalize(fine_points_temp.grad, dim=-1)
+                            fine_normal[b:b+1, head:tail, 3] = fine_output_temp[..., 3]
+                            head += max_batch_size
+
+                    for parameter in self.siren.parameters():
+                        parameter.requires_grad = True
+
+                fine_normal = fine_normal.reshape(batch_size, img_size * img_size, num_steps, 4)
+
+                _, indices = torch.sort(fine_z_vals)
+                fine_z_vals_temp = torch.gather(fine_z_vals, -2, indices)
+                fine_normal = torch.gather(fine_normal, -2, indices.expand(-1, -1, -1, 4))
+
+                normals, _, _ = fancy_integration(fine_normal, fine_z_vals_temp, device=self.device,
+                                                           white_back=kwargs.get('white_back', False),
+                                                           clamp_mode=kwargs['clamp_mode'],
+                                                           last_back=kwargs.get('last_back', False),
+                                                           fill_mode=kwargs.get('fill_mode', None),
+                                                           noise_std=kwargs['nerf_noise'])
+
+
                 fine_output = torch.zeros((batch_size, fine_points.shape[1], 4), device=self.device)
+
                 for b in range(batch_size):
                     head = 0
                     while head < fine_points.shape[1]:

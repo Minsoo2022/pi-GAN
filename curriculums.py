@@ -83,10 +83,10 @@ def extract_metadata(curriculum, current_step):
 
 
 CelebA = {
-    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
-    'dataset_path': '/home/ericryanchan/data/celeba/img_align_celeba/*.jpg',
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/celeba_cropped_no_split/*.jpg',
     'fov': 12,
     'ray_start': 0.88,
     'ray_end': 1.12,
@@ -117,13 +117,49 @@ CelebA = {
     'eval_last_back': True,
 }
 
-CARLA = {
-    0: {'batch_size': 30, 'num_steps': 48, 'img_size': 32, 'batch_split': 1, 'gen_lr': 4e-5, 'disc_lr': 4e-4},
-    int(10e3): {'batch_size': 14, 'num_steps': 48, 'img_size': 64, 'batch_split': 2, 'gen_lr': 2e-5, 'disc_lr': 2e-4},
-    int(55e3): {'batch_size': 10, 'num_steps': 48, 'img_size': 128, 'batch_split': 5, 'gen_lr': 10e-6, 'disc_lr': 10e-5},
+SynFACE = {
+    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
-    'dataset_path': '/home/marcorm/S-GAN/data/cats_bigger_than_128x128/*.jpg',
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface/*/image/*.png',
+    'fov': 12,
+    'ray_start': 0.88,
+    'ray_end': 1.12,
+    'fade_steps': 10000,
+    'h_stddev': 1.05,
+    'v_stddev': 1.05,
+    'h_mean': math.pi*0.5,
+    'v_mean': math.pi*0.5,
+    'sample_dist': 'uniform',
+    'topk_interval': 2000,
+    'topk_v': 0.6,
+    'betas': (0, 0.9),
+    'unique_lr': False,
+    'weight_decay': 0,
+    'r1_lambda': 0.2,
+    'latent_dim': 256,
+    'grad_clip': 10,
+    'model': 'SPATIALSIRENBASELINE',
+    'generator': 'ImplicitGenerator3d',
+    'discriminator': 'CCSEncoderDiscriminator',
+    'dataset': 'Synface',
+    'clamp_mode': 'relu',
+    'z_dist': 'gaussian',
+    'hierarchical_sample': True,
+    'z_lambda': 0,
+    'pos_lambda': 15,
+    'last_back': False,
+    'eval_last_back': True,
+}
+
+CARLA = {
+    # 0: {'batch_size': 10, 'num_steps': 48, 'img_size': 32, 'batch_split': 3, 'gen_lr': 4e-5, 'disc_lr': 4e-4},
+    0: {'batch_size': 30, 'num_steps': 48, 'img_size': 32, 'batch_split': 6, 'gen_lr': 4e-5, 'disc_lr': 4e-4},
+    int(10e3): {'batch_size': 14, 'num_steps': 48, 'img_size': 64, 'batch_split': 4, 'gen_lr': 2e-5, 'disc_lr': 2e-4},
+    int(55e3): {'batch_size': 10, 'num_steps': 48, 'img_size': 128, 'batch_split': 10, 'gen_lr': 10e-6, 'disc_lr': 10e-5},
+    int(200e3): {},
+
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/pi-GAN/dataset/carla/*.png',
     'fov': 30,
     'ray_start': 0.7,
     'ray_end': 1.3,
@@ -157,11 +193,11 @@ CARLA = {
 
 
 CATS = {
-    0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
 
-    'dataset_path': '/home/ericryanchan/graf-beta/data/carla/carla/*.png',
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/cats_bigger_than_128x128/*.jpg',
     'fov': 12,
     'ray_start': 0.8,
     'ray_end': 1.2,
@@ -190,4 +226,41 @@ CATS = {
     'pos_lambda': 0,
     'last_back': False,
     'eval_last_back': True,
+}
+
+ex = {
+    0: {'batch_size': 1, 'num_steps': 48, 'img_size': 32, 'batch_split': 1, 'gen_lr': 4e-5, 'disc_lr': 4e-4},
+    int(10e3): {'batch_size': 1, 'num_steps': 48, 'img_size': 64, 'batch_split': 1, 'gen_lr': 2e-5, 'disc_lr': 2e-4},
+    int(55e3): {'batch_size': 1, 'num_steps': 48, 'img_size': 128, 'batch_split': 1, 'gen_lr': 10e-6, 'disc_lr': 10e-5},
+    int(200e3): {},
+
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/pi-GAN/dataset/carla/*.png',
+    'fov': 30,
+    'ray_start': 0.7,
+    'ray_end': 1.3,
+    'fade_steps': 10000,
+    'sample_dist': 'spherical_uniform',
+    'h_stddev': math.pi,
+    'v_stddev': math.pi/4 * 85/90,
+    'h_mean': math.pi*0.5,
+    'v_mean': math.pi/4 * 85/90,
+    'topk_interval': 1000,
+    'topk_v': 1,
+    'betas': (0, 0.9),
+    'unique_lr': False,
+    'weight_decay': 0,
+    'r1_lambda': 10,
+    'latent_dim': 256,
+    'grad_clip': 1,
+    'model': 'TALLSIREN',
+    'generator': 'ImplicitGenerator3d',
+    'discriminator': 'ProgressiveEncoderDiscriminator',
+    'dataset': 'Carla',
+    'white_back': True,
+    'clamp_mode': 'relu',
+    'z_dist': 'gaussian',
+    'hierarchical_sample': True,
+    'z_lambda': 0,
+    'pos_lambda': 0,
+    'learnable_dist': False,
 }

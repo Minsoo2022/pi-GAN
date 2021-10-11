@@ -4,14 +4,17 @@ import glob
 import numpy as np
 import sys
 import os
+import torchvision
 
 import torch
 from torchvision.utils import save_image
 from tqdm import tqdm
-
+from renderer import Renderer
 import curriculums
+import copy
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def show(tensor_img):
     if len(tensor_img.shape) > 3:
@@ -19,18 +22,19 @@ def show(tensor_img):
     tensor_img = tensor_img.permute(1, 2, 0).squeeze().cpu().numpy()
     plt.imshow(tensor_img)
     plt.show()
-    
+
+
 def generate_img(gen, z, **kwargs):
-    
     with torch.no_grad():
         img, depth_map = generator.staged_forward(z, **kwargs)
         tensor_img = img.detach()
-        
+
         img_min = img.min()
         img_max = img.max()
-        img = (img - img_min)/(img_max-img_min)
+        img = (img - img_min) / (img_max - img_min)
         img = img.permute(0, 2, 3, 1).squeeze().cpu().numpy()
     return img, tensor_img, depth_map
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -53,12 +57,16 @@ if __name__ == '__main__':
     curriculum['lock_view_dependence'] = opt.lock_view_dependence
     curriculum['last_back'] = curriculum.get('eval_last_back', False)
     curriculum['nerf_noise'] = 0
+    curriculum['device'] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     curriculum = {key: value for key, value in curriculum.items() if type(key) is str}
 
-    curriculum['last_back'] = False
-    curriculum['eval_last_back'] = False
-    
-    os.makedirs(opt.output_dir, exist_ok=True)
+    renderer = Renderer(curriculum)
+
+    os.makedirs(os.path.join(opt.output_dir, 'warping_90_unsup'), exist_ok=True)
+    os.makedirs(os.path.join(opt.output_dir, 'warping_90_unsup_depth'), exist_ok=True)
+    os.makedirs(os.path.join(opt.output_dir, 'warping_90_pigan'), exist_ok=True)
+    os.makedirs(os.path.join(opt.output_dir, 'warping_90_pigan_depth'), exist_ok=True)
+
 
     generator = torch.load(opt.path, map_location=torch.device(device))
     ema_file = opt.path.split('generator')[0] + 'ema.pth'
@@ -66,17 +74,42 @@ if __name__ == '__main__':
     ema.copy_to(generator.parameters())
     generator.set_device(device)
     generator.eval()
-    
-    face_angles = [-0.5, -0.25, 0., 0.25, 0.5]
 
+    #face_angles = [-0.5, -0.25, 0., 0.25, 0.5]
+    face_angles = torch.linspace(1,-1,7)
+    h_mean = copy.copy(curriculum['h_mean'])
     face_angles = [a + curriculum['h_mean'] for a in face_angles]
 
+    b = 1
+
     for seed in tqdm(opt.seeds):
+        torch.manual_seed(seed)
+        z = torch.randn((1, 256), device=device)
+
         images = []
-        for i, yaw in enumerate(face_angles):
+        depths = []
+        for i, yaw in enumerate([face_angles[-1]]):
             curriculum['h_mean'] = yaw
             torch.manual_seed(seed)
             z = torch.randn((1, 256), device=device)
             img, tensor_img, depth_map = generate_img(generator, z, **curriculum)
-            images.append(tensor_img)
-        save_image(torch.cat(images), os.path.join(opt.output_dir, f'grid_{seed}.png'), normalize=True)
+            images.append((tensor_img / 2 + 0.5).clamp(0, 1))
+            depths.append(((depth_map - 0.88) / (1.12 - 0.88)).clamp(0, 1).unsqueeze(1))
+        save_image(images[0], os.path.join(opt.output_dir, 'warping_90_pigan', f'grid_{seed}.png'),
+                   normalize=False)
+        save_image(depths[0], os.path.join(opt.output_dir, 'warping_90_pigan_depth', f'grid_{seed}.png'),
+                   normalize=False)
+
+        curriculum['h_mean'] = face_angles[-1]
+        img, tensor_img, depth_map = generate_img(generator, z, **curriculum)
+        v0 = torch.FloatTensor([0 * math.pi / 180 * 60, 0, 0, 0, 0, 0]).to(device).repeat(b, 1)
+        canon_im_rotate, canon_depth_rotate = renderer.render_yaw(tensor_img.to(device), depth_map.to(device), v_before=v0, maxr=90,
+                                              nsample=7)  # (B,T,C,H,W)
+        canon_im_rotate = canon_im_rotate.clamp(-1, 1).detach().cpu() / 2 + 0.5
+        canon_depth_rotate = ((canon_depth_rotate - 0.88) / (1.12 - 0.88)).clamp(0,1)
+        save_image(torchvision.utils.make_grid(canon_im_rotate[0], nrow=7),
+                   os.path.join(opt.output_dir, 'warping_90_unsup', f'grid_{seed}.png'))
+        save_image(torchvision.utils.make_grid(canon_depth_rotate[0], nrow=7),
+                   os.path.join(opt.output_dir, 'warping_90_unsup_depth', f'grid_{seed}.png'))
+
+

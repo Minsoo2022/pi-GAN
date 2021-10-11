@@ -35,6 +35,26 @@ class CelebA(Dataset):
 
         return X, 0
 
+class Synface(Dataset):
+    """CelelebA Dataset"""
+
+    def __init__(self, dataset_path, img_size, **kwargs):
+        super().__init__()
+
+        self.data = glob.glob(dataset_path)
+        assert len(self.data) > 0, "Can't find data; make sure you specify the path to your dataset"
+        self.transform = transforms.Compose(
+                    [transforms.CenterCrop(220), transforms.ToTensor(), transforms.Normalize([0.5], [0.5]), transforms.RandomHorizontalFlip(p=0.5), transforms.Resize((img_size, img_size), interpolation=0)])
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        X = PIL.Image.open(self.data[index])
+        X = self.transform(X)
+
+        return X, 0
+
 class Cats(Dataset):
     """Cats Dataset"""
 
