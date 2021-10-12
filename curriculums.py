@@ -83,10 +83,10 @@ def extract_metadata(curriculum, current_step):
 
 
 CelebA = {
-    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    0: {'batch_size': 28*2, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
-    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/celeba_cropped_no_split/*.jpg',
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/img_align_celeba/*.jpg',
     'fov': 12,
     'ray_start': 0.88,
     'ray_end': 1.12,

@@ -206,12 +206,14 @@ def train(rank, world_size, opt):
                 # Generate images for discriminator training
                 with torch.no_grad():
                     z = z_sampler((real_imgs.shape[0], metadata['latent_dim']), device=device, dist=metadata['z_dist'])
+                    z_bg = z_sampler((real_imgs.shape[0], metadata['latent_dim']), device=device, dist=metadata['z_dist'])
                     split_batch_size = z.shape[0] // metadata['batch_split']
                     gen_imgs = []
                     gen_positions = []
                     for split in range(metadata['batch_split']):
                         subset_z = z[split * split_batch_size:(split+1) * split_batch_size]
-                        g_imgs, g_pos = generator_ddp(subset_z, **metadata)
+                        subset_z_bg = z_bg[split * split_batch_size:(split+1) * split_batch_size]
+                        g_imgs, g_pos = generator_ddp(subset_z, subset_z_bg, **metadata)
 
                         gen_imgs.append(g_imgs)
                         gen_positions.append(g_pos)
@@ -254,13 +256,15 @@ def train(rank, world_size, opt):
 
             # TRAIN GENERATOR
             z = z_sampler((imgs.shape[0], metadata['latent_dim']), device=device, dist=metadata['z_dist'])
+            z_bg = z_sampler((imgs.shape[0], metadata['latent_dim']), device=device, dist=metadata['z_dist'])
 
             split_batch_size = z.shape[0] // metadata['batch_split']
 
             for split in range(metadata['batch_split']):
                 with torch.cuda.amp.autocast():
                     subset_z = z[split * split_batch_size:(split+1) * split_batch_size]
-                    gen_imgs, gen_positions = generator_ddp(subset_z, **metadata)
+                    subset_z_bg = z_bg[split * split_batch_size:(split + 1) * split_batch_size]
+                    gen_imgs, gen_positions = generator_ddp(subset_z, subset_z_bg, **metadata)
                     g_preds, g_pred_latent, g_pred_position = discriminator_ddp(gen_imgs, alpha, **metadata)
 
                     topk_percentage = max(0.99 ** (discriminator.step/metadata['topk_interval']), metadata['topk_v']) if 'topk_interval' in metadata and 'topk_v' in metadata else 1

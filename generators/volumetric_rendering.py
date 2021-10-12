@@ -15,7 +15,7 @@ import random
 from .math_utils_torch import *
 
 
-def fancy_integration(rgb_sigma, z_vals, device, noise_std=0.5, last_back=False, white_back=False, clamp_mode=None, fill_mode=None):
+def fancy_integration(rgb_sigma, z_vals, device, noise_std=0.5, background=None, last_back=False, last_bg=False, white_back=False, clamp_mode=None, fill_mode=None):
     """Performs NeRF volumetric rendering."""
 
     rgbs = rgb_sigma[..., :3]
@@ -42,6 +42,11 @@ def fancy_integration(rgb_sigma, z_vals, device, noise_std=0.5, last_back=False,
         weights[:, :, -1] += (1 - weights_sum)
 
     rgb_final = torch.sum(weights * rgbs, -2)
+    if last_bg:
+        if last_back:
+            raise NotImplementedError()
+        rgb_final = rgb_final + (1 - weights_sum) * background.flatten(start_dim=2).permute(0,2,1)
+
     depth_final = torch.sum(weights * z_vals, -2)
 
     if white_back:

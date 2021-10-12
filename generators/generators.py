@@ -17,19 +17,23 @@ class ImplicitGenerator3d(nn.Module):
         self.epoch = 0
         self.step = 0
 
+        self.bg_generator = Background_Generator(z_dim=self.z_dim)
+
     def set_device(self, device):
         self.device = device
         self.siren.device = device
 
         self.generate_avg_frequencies()
 
-    def forward(self, z, img_size, fov, ray_start, ray_end, num_steps, h_stddev, v_stddev, h_mean, v_mean, hierarchical_sample, sample_dist=None, lock_view_dependence=False, **kwargs):
+    def forward(self, z, z_bg, img_size, fov, ray_start, ray_end, num_steps, h_stddev, v_stddev, h_mean, v_mean, hierarchical_sample, sample_dist=None, lock_view_dependence=False, **kwargs):
         """
         Generates images from a noise vector, rendering parameters, and camera distribution.
         Uses the hierarchical sampling scheme described in NeRF.
         """
 
         batch_size = z.shape[0]
+
+        bg = self.bg_generator(z_bg)
 
         # Generate initial camera rays and sample points.
         with torch.no_grad():
@@ -88,7 +92,7 @@ class ImplicitGenerator3d(nn.Module):
 
 
         # Create images with NeRF
-        pixels, depth, weights = fancy_integration(all_outputs, all_z_vals, device=self.device, white_back=kwargs.get('white_back', False), last_back=kwargs.get('last_back', False), clamp_mode=kwargs['clamp_mode'], noise_std=kwargs['nerf_noise'])
+        pixels, depth, weights = fancy_integration(all_outputs, all_z_vals, background=bg, device=self.device, white_back=kwargs.get('white_back', False), last_bg=True, last_back=kwargs.get('last_back', False), clamp_mode=kwargs['clamp_mode'], noise_std=kwargs['nerf_noise'])
 
         pixels = pixels.reshape((batch_size, img_size, img_size, 3))
         pixels = pixels.permute(0, 3, 1, 2).contiguous() * 2 - 1
@@ -387,3 +391,42 @@ class ImplicitGenerator3d(nn.Module):
         pixels = pixels.permute(0, 3, 1, 2).contiguous() * 2 - 1
 
         return pixels, torch.cat([pitch, yaw], -1)
+
+class Background_Generator(nn.Module):
+    def __init__(self, z_dim=100, hidden_dim=256, output_dim=3, output_size=64):
+        super().__init__()
+        self.z_dim = z_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        self.first_MLP = nn.Linear(z_dim, hidden_dim*4*4)
+        self.activation = nn.LeakyReLU(0.2)
+        self.layers = nn.Sequential(*[
+            ConvBlock(hidden_dim, hidden_dim),
+            ConvBlock(hidden_dim, hidden_dim//2),
+            ConvBlock(hidden_dim // 2, hidden_dim // 2),
+            ConvBlock(hidden_dim // 2, hidden_dim // 4),
+            nn.Conv2d(hidden_dim // 4, self.output_dim, 3, 1, 1),
+            nn.Sigmoid()
+        ])
+
+    def forward(self, x):
+        x = self.activation(self.first_MLP(x))
+        x = x.reshape(x.shape[0], self.hidden_dim, 4, 4)
+        x = self.layers(x)
+        return x
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, activation='LReLU', norm='InstanceNorm', first_layer=False, last_layer=False):
+        super().__init__()
+        self.Conv_1 = nn.Conv2d(in_ch, out_ch, 3, stride=1, padding=1, bias=True)
+        self.Conv_2 = nn.Conv2d(out_ch, out_ch, 3, stride=1, padding=1, bias=True)
+        if activation == 'LReLU':
+            self.activation = nn.LeakyReLU(0.2)
+        if norm == "InstanceNorm":
+            self.norm = nn.InstanceNorm2d(out_ch)
+
+    def forward(self, x):
+        x = self.norm(self.activation(self.Conv_1(x)))
+        x = self.norm(self.activation(self.Conv_2(x)))
+        x = F.interpolate(x, scale_factor=2)
+        return x
