@@ -118,16 +118,16 @@ CelebA = {
 }
 
 SynFACE = {
-    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
-    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface/*/image/*.png',
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface_aligned/*/image/*.png',
     'fov': 12,
     'ray_start': 0.88,
     'ray_end': 1.12,
     'fade_steps': 10000,
-    'h_stddev': 1.05,
-    'v_stddev': 1.05,
+    'h_stddev': 1,
+    'v_stddev': 1,
     'h_mean': math.pi*0.5,
     'v_mean': math.pi*0.5,
     'sample_dist': 'uniform',
