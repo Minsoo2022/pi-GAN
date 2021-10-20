@@ -160,24 +160,18 @@ class UniformBoxWarp(nn.Module):
 class SPATIALSIRENBASELINE(nn.Module):
     """Same architecture as TALLSIREN but adds a UniformBoxWarp to map input points to -1, 1"""
 
-    def __init__(self, input_dim=2, z_dim=100, hidden_dim=256, output_dim=1, device=None):
+    def __init__(self, input_dim=2, z_dim=100, hidden_dim=256, output_dim=1, device=None, n_layers=8):
         super().__init__()
         self.device = device
         self.input_dim = input_dim
         self.z_dim = z_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        
-        self.network = nn.ModuleList([
-            FiLMLayer(3, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-            FiLMLayer(hidden_dim, hidden_dim),
-        ])
+
+        network = [FiLMLayer(3, hidden_dim)] \
+                + [FiLMLayer(hidden_dim, hidden_dim) for _ in range(n_layers-1)]
+        self.network = nn.ModuleList(network)
+
         self.final_layer = nn.Linear(hidden_dim, 1)
         
         self.color_layer_sine = FiLMLayer(hidden_dim + 3, hidden_dim)

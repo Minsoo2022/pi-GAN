@@ -14,6 +14,8 @@ class ImplicitGenerator3d(nn.Module):
         super().__init__()
         self.z_dim = z_dim
         self.siren = siren(output_dim=4, z_dim=self.z_dim, input_dim=3, device=None)
+
+        self.bg_siren = siren(output_dim=4, z_dim=self.z_dim, input_dim=3, device=None, n_layers=4)
         self.epoch = 0
         self.step = 0
 
@@ -23,7 +25,7 @@ class ImplicitGenerator3d(nn.Module):
 
         self.generate_avg_frequencies()
 
-    def forward(self, z, img_size, fov, ray_start, ray_end, num_steps, h_stddev, v_stddev, h_mean, v_mean, hierarchical_sample, sample_dist=None, lock_view_dependence=False, **kwargs):
+    def forward(self, z, img_size, fov, ray_start, ray_end, ray_bg, num_steps, h_stddev, v_stddev, h_mean, v_mean, hierarchical_sample, sample_dist=None, lock_view_dependence=False, **kwargs):
         """
         Generates images from a noise vector, rendering parameters, and camera distribution.
         Uses the hierarchical sampling scheme described in NeRF.
@@ -79,13 +81,29 @@ class ImplicitGenerator3d(nn.Module):
             # Combine course and fine points
             all_outputs = torch.cat([fine_output, coarse_output], dim = -2)
             all_z_vals = torch.cat([fine_z_vals, z_vals], dim = -2)
-            _, indices = torch.sort(all_z_vals, dim=-2)
-            all_z_vals = torch.gather(all_z_vals, -2, indices)
-            all_outputs = torch.gather(all_outputs, -2, indices.expand(-1, -1, -1, 4))
         else:
             all_outputs = coarse_output
             all_z_vals = z_vals
 
+        with torch.no_grad():
+            _, bg_z_vals, _ = get_initial_rays_trig(batch_size, num_steps, resolution=(img_size, img_size),
+                                                               device=self.device, fov=fov, ray_start=ray_end,
+                                                               ray_end=ray_bg)  # batch_size, pixels, num_steps, 1
+            distance_between_points = bg_z_vals[:, :, 1:2, :] - bg_z_vals[:, :, 0:1, :]
+            offset = (torch.rand(bg_z_vals.shape, device=self.device) - 0.5) * distance_between_points
+            bg_z_vals = bg_z_vals + offset
+            bg_points = transformed_ray_origins.unsqueeze(2).contiguous() + transformed_ray_directions.unsqueeze(
+                2).contiguous() * bg_z_vals.expand(-1, -1, -1, 3).contiguous()
+            bg_points = bg_points.reshape(batch_size, img_size * img_size * num_steps, 3)
+
+        bg_output = self.bg_siren(bg_points, z, ray_directions=transformed_ray_directions_expanded).reshape(batch_size,
+                                                                                                   img_size * img_size,
+                                                                                                   -1, 4)
+        all_outputs = torch.cat([all_outputs, bg_output], dim=-2)
+        all_z_vals = torch.cat([all_z_vals, bg_z_vals], dim=-2)
+        _, indices = torch.sort(all_z_vals, dim=-2)
+        all_z_vals = torch.gather(all_z_vals, -2, indices)
+        all_outputs = torch.gather(all_outputs, -2, indices.expand(-1, -1, -1, 4))
 
         # Create images with NeRF
         pixels, depth, weights = fancy_integration(all_outputs, all_z_vals, device=self.device, white_back=kwargs.get('white_back', False), last_back=kwargs.get('last_back', False), clamp_mode=kwargs['clamp_mode'], noise_std=kwargs['nerf_noise'])
@@ -107,7 +125,7 @@ class ImplicitGenerator3d(nn.Module):
         return self.avg_frequencies, self.avg_phase_shifts
 
 
-    def staged_forward(self, z, img_size, fov, ray_start, ray_end, num_steps, h_stddev, v_stddev, h_mean, v_mean, psi=1, lock_view_dependence=False, max_batch_size=50000, depth_map=False, near_clip=0, far_clip=2, sample_dist=None, hierarchical_sample=False, **kwargs):
+    def staged_forward(self, z, img_size, fov, ray_start, ray_end, ray_bg, num_steps, h_stddev, v_stddev, h_mean, v_mean, psi=1, lock_view_dependence=False, max_batch_size=50000, depth_map=False, near_clip=0, far_clip=2, sample_dist=None, hierarchical_sample=False, **kwargs):
         """
         Similar to forward but used for inference.
         Calls the model sequencially using max_batch_size to limit memory usage.
@@ -174,44 +192,6 @@ class ImplicitGenerator3d(nn.Module):
                     transformed_ray_directions_expanded[..., -1] = -1
 
                 # Sequentially evaluate siren with max_batch_size to avoid OOM
-                fine_normal = torch.zeros((batch_size, fine_points.shape[1], 4), device=self.device)
-
-                with torch.enable_grad():
-                    for parameter in self.siren.parameters():
-                        parameter.requires_grad = False
-
-                    for b in range(batch_size):
-                        head = 0
-                        while head < fine_points.shape[1]:
-                            tail = head + max_batch_size
-                            fine_points_temp = fine_points[b:b+1, head:tail].clone().detach_().requires_grad_(True)
-                            truncated_frequencies_temp = truncated_frequencies[b:b+1].detach()
-                            truncated_phase_shifts_temp = truncated_phase_shifts[b:b + 1].detach()
-                            transformed_ray_directions_expanded_temp = transformed_ray_directions_expanded[b:b + 1, head:tail].detach()
-
-                            fine_output_temp = self.siren.forward_with_frequencies_phase_shifts(fine_points_temp, truncated_frequencies_temp, truncated_phase_shifts_temp, ray_directions=transformed_ray_directions_expanded_temp)
-                            fine_output_temp[..., 3].backward(torch.ones_like(fine_output_temp[..., -1]))
-                            fine_normal[b:b+1, head:tail, :3] = -nn.functional.normalize(fine_points_temp.grad, dim=-1)
-                            fine_normal[b:b+1, head:tail, 3] = fine_output_temp[..., 3]
-                            head += max_batch_size
-
-                    for parameter in self.siren.parameters():
-                        parameter.requires_grad = True
-
-                fine_normal = fine_normal.reshape(batch_size, img_size * img_size, num_steps, 4)
-
-                _, indices = torch.sort(fine_z_vals)
-                fine_z_vals_temp = torch.gather(fine_z_vals, -2, indices)
-                fine_normal = torch.gather(fine_normal, -2, indices.expand(-1, -1, -1, 4))
-
-                normals, _, _ = fancy_integration(fine_normal, fine_z_vals_temp, device=self.device,
-                                                           white_back=kwargs.get('white_back', False),
-                                                           clamp_mode=kwargs['clamp_mode'],
-                                                           last_back=kwargs.get('last_back', False),
-                                                           fill_mode=kwargs.get('fill_mode', None),
-                                                           noise_std=kwargs['nerf_noise'])
-
-
                 fine_output = torch.zeros((batch_size, fine_points.shape[1], 4), device=self.device)
 
                 for b in range(batch_size):
@@ -225,12 +205,36 @@ class ImplicitGenerator3d(nn.Module):
 
                 all_outputs = torch.cat([fine_output, coarse_output], dim = -2)
                 all_z_vals = torch.cat([fine_z_vals, z_vals], dim = -2)
-                _, indices = torch.sort(all_z_vals, dim=-2)
-                all_z_vals = torch.gather(all_z_vals, -2, indices)
-                all_outputs = torch.gather(all_outputs, -2, indices.expand(-1, -1, -1, 4))
             else:
                 all_outputs = coarse_output
                 all_z_vals = z_vals
+
+            with torch.no_grad():
+                _, bg_z_vals, _ = get_initial_rays_trig(batch_size, num_steps, resolution=(img_size, img_size),
+                                                        device=self.device, fov=fov, ray_start=ray_end,
+                                                        ray_end=ray_bg)  # batch_size, pixels, num_steps, 1
+                distance_between_points = bg_z_vals[:, :, 1:2, :] - bg_z_vals[:, :, 0:1, :]
+                offset = (torch.rand(bg_z_vals.shape, device=self.device) - 0.5) * distance_between_points
+                bg_z_vals = bg_z_vals + offset
+                bg_points = transformed_ray_origins.unsqueeze(2).contiguous() + transformed_ray_directions.unsqueeze(
+                    2).contiguous() * bg_z_vals.expand(-1, -1, -1, 3).contiguous()
+                bg_points = bg_points.reshape(batch_size, img_size * img_size * num_steps, 3)
+
+            # BATCHED SAMPLE
+            bg_output = torch.zeros((batch_size, bg_points.shape[1], 4), device=self.device)
+            for b in range(batch_size):
+                head = 0
+                while head < bg_points.shape[1]:
+                    tail = head + max_batch_size
+                    bg_output[b:b+1, head:tail] = self.bg_siren.forward_with_frequencies_phase_shifts(bg_points[b:b+1, head:tail], truncated_frequencies[b:b+1], truncated_phase_shifts[b:b+1], ray_directions=transformed_ray_directions_expanded[b:b+1, head:tail])
+                    head += max_batch_size
+
+            bg_output = bg_output.reshape(batch_size, img_size * img_size, num_steps, 4)
+            all_outputs = torch.cat([all_outputs, bg_output], dim=-2)
+            all_z_vals = torch.cat([all_z_vals, bg_z_vals], dim=-2)
+            _, indices = torch.sort(all_z_vals, dim=-2)
+            all_z_vals = torch.gather(all_z_vals, -2, indices)
+            all_outputs = torch.gather(all_outputs, -2, indices.expand(-1, -1, -1, 4))
 
 
             pixels, depth, weights = fancy_integration(all_outputs, all_z_vals, device=self.device, white_back=kwargs.get('white_back', False), clamp_mode = kwargs['clamp_mode'], last_back=kwargs.get('last_back', False), fill_mode=kwargs.get('fill_mode', None), noise_std=kwargs['nerf_noise'])
