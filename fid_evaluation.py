@@ -61,7 +61,8 @@ def output_images(generator, input_metadata, rank, world_size, output_dir, num_i
     with torch.no_grad():
         while img_counter < num_imgs:
             z = torch.randn((metadata['batch_size'], generator.module.z_dim), device=generator.module.device)
-            generated_imgs, _ = generator.module.staged_forward(z, **metadata)
+            z_bg = torch.randn((metadata['batch_size'], generator.module.z_dim), device=generator.module.device)
+            generated_imgs, _ = generator.module.staged_forward(z, z_bg, **metadata)
 
             for img in generated_imgs:
                 save_image(img, os.path.join(output_dir, f'{img_counter:0>5}.jpg'), normalize=True, range=(-1, 1))

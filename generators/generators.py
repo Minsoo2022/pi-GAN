@@ -25,7 +25,7 @@ class ImplicitGenerator3d(nn.Module):
 
         self.generate_avg_frequencies()
 
-    def forward(self, z, img_size, fov, ray_start, ray_end, ray_bg, num_steps, h_stddev, v_stddev, h_mean, v_mean, hierarchical_sample, sample_dist=None, lock_view_dependence=False, **kwargs):
+    def forward(self, z, z_bg, img_size, fov, ray_start, ray_end, ray_bg, num_steps, h_stddev, v_stddev, h_mean, v_mean, hierarchical_sample, sample_dist=None, lock_view_dependence=False, **kwargs):
         """
         Generates images from a noise vector, rendering parameters, and camera distribution.
         Uses the hierarchical sampling scheme described in NeRF.
@@ -96,7 +96,7 @@ class ImplicitGenerator3d(nn.Module):
                 2).contiguous() * bg_z_vals.expand(-1, -1, -1, 3).contiguous()
             bg_points = bg_points.reshape(batch_size, img_size * img_size * num_steps, 3)
 
-        bg_output = self.bg_siren(bg_points, z, ray_directions=transformed_ray_directions_expanded).reshape(batch_size,
+        bg_output = self.bg_siren(bg_points, z_bg, ray_directions=transformed_ray_directions_expanded).reshape(batch_size,
                                                                                                    img_size * img_size,
                                                                                                    -1, 4)
         all_outputs = torch.cat([all_outputs, bg_output], dim=-2)
@@ -125,7 +125,7 @@ class ImplicitGenerator3d(nn.Module):
         return self.avg_frequencies, self.avg_phase_shifts
 
 
-    def staged_forward(self, z, img_size, fov, ray_start, ray_end, ray_bg, num_steps, h_stddev, v_stddev, h_mean, v_mean, psi=1, lock_view_dependence=False, max_batch_size=50000, depth_map=False, near_clip=0, far_clip=2, sample_dist=None, hierarchical_sample=False, **kwargs):
+    def staged_forward(self, z, z_bg, img_size, fov, ray_start, ray_end, ray_bg, num_steps, h_stddev, v_stddev, h_mean, v_mean, psi=1, lock_view_dependence=False, max_batch_size=50000, depth_map=False, near_clip=0, far_clip=2, sample_dist=None, hierarchical_sample=False, **kwargs):
         """
         Similar to forward but used for inference.
         Calls the model sequencially using max_batch_size to limit memory usage.
@@ -220,13 +220,14 @@ class ImplicitGenerator3d(nn.Module):
                     2).contiguous() * bg_z_vals.expand(-1, -1, -1, 3).contiguous()
                 bg_points = bg_points.reshape(batch_size, img_size * img_size * num_steps, 3)
 
+                bg_frequencies, bg_phase = self.siren.mapping_network(z_bg)
             # BATCHED SAMPLE
             bg_output = torch.zeros((batch_size, bg_points.shape[1], 4), device=self.device)
             for b in range(batch_size):
                 head = 0
                 while head < bg_points.shape[1]:
                     tail = head + max_batch_size
-                    bg_output[b:b+1, head:tail] = self.bg_siren.forward_with_frequencies_phase_shifts(bg_points[b:b+1, head:tail], truncated_frequencies[b:b+1], truncated_phase_shifts[b:b+1], ray_directions=transformed_ray_directions_expanded[b:b+1, head:tail])
+                    bg_output[b:b+1, head:tail] = self.bg_siren.forward_with_frequencies_phase_shifts(bg_points[b:b+1, head:tail], bg_frequencies[b:b+1], bg_phase[b:b+1], ray_directions=transformed_ray_directions_expanded[b:b+1, head:tail])
                     head += max_batch_size
 
             bg_output = bg_output.reshape(batch_size, img_size * img_size, num_steps, 4)
