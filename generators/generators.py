@@ -209,30 +209,29 @@ class ImplicitGenerator3d(nn.Module):
                 all_outputs = coarse_output
                 all_z_vals = z_vals
 
-            with torch.no_grad():
-                _, bg_z_vals, _ = get_initial_rays_trig(batch_size, num_steps, resolution=(img_size, img_size),
-                                                        device=self.device, fov=fov, ray_start=ray_end,
-                                                        ray_end=ray_bg)  # batch_size, pixels, num_steps, 1
-                distance_between_points = bg_z_vals[:, :, 1:2, :] - bg_z_vals[:, :, 0:1, :]
-                offset = (torch.rand(bg_z_vals.shape, device=self.device) - 0.5) * distance_between_points
-                bg_z_vals = bg_z_vals + offset
-                bg_points = transformed_ray_origins.unsqueeze(2).contiguous() + transformed_ray_directions.unsqueeze(
-                    2).contiguous() * bg_z_vals.expand(-1, -1, -1, 3).contiguous()
-                bg_points = bg_points.reshape(batch_size, img_size * img_size * num_steps, 3)
+            # with torch.no_grad():
+            #     _, bg_z_vals, _ = get_initial_rays_trig(batch_size, num_steps, resolution=(img_size, img_size),
+            #                                             device=self.device, fov=fov, ray_start=ray_end,
+            #                                             ray_end=ray_bg)  # batch_size, pixels, num_steps, 1
+            #     distance_between_points = bg_z_vals[:, :, 1:2, :] - bg_z_vals[:, :, 0:1, :]
+            #     offset = (torch.rand(bg_z_vals.shape, device=self.device) - 0.5) * distance_between_points
+            #     bg_z_vals = bg_z_vals + offset
+            #     bg_points = transformed_ray_origins.unsqueeze(2).contiguous() + transformed_ray_directions.unsqueeze(
+            #         2).contiguous() * bg_z_vals.expand(-1, -1, -1, 3).contiguous()
+            #     bg_points = bg_points.reshape(batch_size, img_size * img_size * num_steps, 3)
+            #
+            #     bg_frequencies, bg_phase = self.siren.mapping_network(z_bg)
+            # # BATCHED SAMPLE
+            # bg_output = torch.zeros((batch_size, bg_points.shape[1], 4), device=self.device)
+            # for b in range(batch_size):
+            #     head = 0
+            #     while head < bg_points.shape[1]:
+            #         tail = head + max_batch_size
+            #         bg_output[b:b+1, head:tail] = self.bg_siren.forward_with_frequencies_phase_shifts(bg_points[b:b+1, head:tail], bg_frequencies[b:b+1], bg_phase[b:b+1], ray_directions=transformed_ray_directions_expanded[b:b+1, head:tail])
+            #         head += max_batch_size
+            #
+            # bg_output = bg_output.reshape(batch_size, img_size * img_size, num_steps, 4)
 
-                bg_frequencies, bg_phase = self.siren.mapping_network(z_bg)
-            # BATCHED SAMPLE
-            bg_output = torch.zeros((batch_size, bg_points.shape[1], 4), device=self.device)
-            for b in range(batch_size):
-                head = 0
-                while head < bg_points.shape[1]:
-                    tail = head + max_batch_size
-                    bg_output[b:b+1, head:tail] = self.bg_siren.forward_with_frequencies_phase_shifts(bg_points[b:b+1, head:tail], bg_frequencies[b:b+1], bg_phase[b:b+1], ray_directions=transformed_ray_directions_expanded[b:b+1, head:tail])
-                    head += max_batch_size
-
-            bg_output = bg_output.reshape(batch_size, img_size * img_size, num_steps, 4)
-            all_outputs = torch.cat([all_outputs, bg_output], dim=-2)
-            all_z_vals = torch.cat([all_z_vals, bg_z_vals], dim=-2)
             _, indices = torch.sort(all_z_vals, dim=-2)
             all_z_vals = torch.gather(all_z_vals, -2, indices)
             all_outputs = torch.gather(all_outputs, -2, indices.expand(-1, -1, -1, 4))
