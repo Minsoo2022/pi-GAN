@@ -235,6 +235,8 @@ class ImplicitGenerator3d(nn.Module):
 
             pixels, depth, weights = fancy_integration(all_outputs, all_z_vals, device=self.device, white_back=kwargs.get('white_back', False), clamp_mode = kwargs['clamp_mode'], last_back=kwargs.get('last_back', False), fill_mode=kwargs.get('fill_mode', None), noise_std=kwargs['nerf_noise'])
             depth_map = depth.reshape(batch_size, img_size, img_size).contiguous().cpu()
+            depth = depth.clamp(ray_start, ray_end)
+
 
 
             pixels = pixels.reshape((batch_size, img_size, img_size, 3))
