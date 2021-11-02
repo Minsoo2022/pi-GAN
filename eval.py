@@ -186,8 +186,8 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='eval')
     parser.add_argument('--load_dir', type=str, default='')
     parser.add_argument('--curriculum', type=str, required=True)
-    parser.add_argument('--gpu_ids', type=str, default='5')
-    parser.add_argument('--num_img', type=int, default=20)
+    parser.add_argument('--gpu_ids', type=str, default='4')
+    parser.add_argument('--num_img', type=int, default=2048)
     parser.add_argument('--nobg', type=bool, default=False)
 
 

@@ -192,20 +192,20 @@ SynFACE = {
     'eval_last_back': True,
 }
 
-SynFACE = {
-    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+SynFACE_200 = {
+    0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
     'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface_aligned/*/image/*.png',
-    'fov': 12,
-    'ray_start': 0.88,
-    'ray_end': 1.12,
+    'fov': 10,
+    'ray_start': 0.8,
+    'ray_end': 1.2,
     'fade_steps': 10000,
-    'h_stddev': 1,
-    'v_stddev': 1,
+    'h_stddev': 0.3,
+    'v_stddev': 0.3,
     'h_mean': math.pi*0.5,
     'v_mean': math.pi*0.5,  # pi/2 - 1, pi/2 + 1,   0.57~2.57
-    'sample_dist': 'uniform',
+    'sample_dist': 'gaussian',
     'topk_interval': 2000,
     'topk_v': 0.6,
     'betas': (0, 0.9),
@@ -217,7 +217,7 @@ SynFACE = {
     'model': 'SPATIALSIRENBASELINE',
     'generator': 'ImplicitGenerator3d',
     'discriminator': 'CCSEncoderDiscriminator',
-    'dataset': 'Synface',
+    'dataset': 'SynfaceCropped200',
     'clamp_mode': 'relu',
     'z_dist': 'gaussian',
     'hierarchical_sample': True,
