@@ -65,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument('--seeds', nargs='+', default=[0, 1, 2, 3, 4, 5, 6])
     parser.add_argument('--cube_size', type=float, default=0.4)
     parser.add_argument('--voxel_resolution', type=int, default=256)
-    parser.add_argument('--output_dir', type=str, default='shapes/synface')
+    parser.add_argument('--output_dir', type=str, default='shapes/celeba_56_12')
     opt = parser.parse_args()
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

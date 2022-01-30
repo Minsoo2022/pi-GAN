@@ -148,7 +148,13 @@ def eval(opt):
         ema.store(generator.parameters())
         ema.copy_to(generator.parameters())
         generator.eval()
-        fid_evaluation.output_images_noddp(generator, metadata, generated_dir, depth_dir, bg_remove=opt.nobg, num_imgs=opt.num_img, target_size=opt.target_size)
+
+        # metadata['h_stddev'] = 0
+        # metadata['v_stddev'] = 0
+        # metadata['v_stddev_eval'] = 0
+        # metadata['v_stddev_eval'] = 0
+
+        fid_evaluation.output_images_noddp(generator, metadata, generated_dir, depth_dir, bg_remove=opt.nobg, num_imgs=opt.num_img, target_size=opt.target_size, psi=opt.psi)
         ema.restore(generator.parameters())
 
         fid, fid_nobg, m1, s1 = fid_evaluation.calculate_fid(metadata['dataset'], generated_dir, target_size=opt.target_size, bg_remove=opt.nobg, m1=m1, s1=s1)
@@ -189,6 +195,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_ids', type=str, default='4')
     parser.add_argument('--num_img', type=int, default=2048)
     parser.add_argument('--target_size', type=int, default=128)
+    parser.add_argument('--psi', type=float, default=1)
     parser.add_argument('--nobg', type=bool, default=False)
 
 

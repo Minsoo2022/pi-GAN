@@ -82,17 +82,17 @@ def output_images(generator, input_metadata, rank, world_size, output_dir, num_i
                 if rank == 0: pbar.update(world_size)
     if rank == 0: pbar.close()
 
-def output_images_noddp(generator, input_metadata, output_dir, depth_dir, num_imgs=2048, bg_remove=False):
+def output_images_noddp(generator, input_metadata, output_dir, depth_dir, num_imgs=2048, bg_remove=False, target_size=128, psi=1):
     if bg_remove:
         remover = BG_remover()
     metadata = copy.deepcopy(input_metadata)
-    metadata['img_size'] = 128
+    metadata['img_size'] = target_size
     metadata['batch_size'] = 4
 
     metadata['h_stddev'] = metadata.get('h_stddev_eval', metadata['h_stddev'])
     metadata['v_stddev'] = metadata.get('v_stddev_eval', metadata['v_stddev'])
     metadata['sample_dist'] = metadata.get('sample_dist_eval', metadata['sample_dist'])
-    metadata['psi'] = 1
+    metadata['psi'] = psi
 
     generator.eval()
 
@@ -104,11 +104,11 @@ def output_images_noddp(generator, input_metadata, output_dir, depth_dir, num_im
             z = torch.randn((metadata['batch_size'], generator.z_dim), device=generator.device)
             generated_imgs, generated_depth = generator.staged_forward(z, use_fixed_light=False, **metadata)
             for i, img in enumerate(generated_imgs):
-                save_image(img, os.path.join(output_dir, f'{img_counter:0>5}.jpg'), normalize=True, range=(-1, 1))
-                save_image(generated_depth[i], os.path.join(depth_dir, f'{img_counter:0>5}.jpg'), normalize=True, range=(metadata['ray_start'], metadata['ray_end']))
+                save_image(img, os.path.join(output_dir, f'{img_counter:0>5}.png'), normalize=True, range=(-1, 1))
+                save_image(generated_depth[i], os.path.join(depth_dir, f'{img_counter:0>5}.png'), normalize=True, range=(metadata['ray_start'], metadata['ray_end']))
                 if bg_remove:
                     img_nobg = remover.remove_bg(img / 2 + 0.5)
-                    save_image(img_nobg, os.path.join(output_dir.replace('image', 'image_nobg'), f'{img_counter:0>5}.jpg'))
+                    save_image(img_nobg, os.path.join(output_dir.replace('image', 'image_nobg'), f'{img_counter:0>5}.png'))
                 img_counter += 1
                 pbar.update(1)
     pbar.close()

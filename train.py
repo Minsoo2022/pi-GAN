@@ -7,6 +7,9 @@ import math
 
 from collections import deque
 
+import extract_shapes
+import mrcfile
+
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -49,6 +52,11 @@ def load_images(images, curriculum, device):
         head += stage['batch_size']
     return return_images
 
+def save_mesh(z, generator, output_dir, step):
+    voxel_grid = extract_shapes.sample_generator(generator, z, cube_length=0.3, voxel_resolution=256)
+    with mrcfile.new_mmap(os.path.join(output_dir, f'{step}.mrc'), overwrite=True, shape=voxel_grid.shape,
+                          mrc_mode=2) as mrc:
+        mrc.data[:] = voxel_grid
 
 def z_sampler(shape, device, dist):
     if dist == 'gaussian':
@@ -323,6 +331,10 @@ def train(rank, world_size, opt):
                             copied_metadata['img_size'] = 128
                             gen_imgs = generator_ddp.module.staged_forward(fixed_z.to(device),  **copied_metadata)[0]
                     save_image(gen_imgs[:25], os.path.join(opt.output_dir, f"{discriminator.step}_fixed_ema.png"), nrow=5, normalize=True)
+                    if discriminator.step % 2500 == 0:
+                        with torch.no_grad():
+                            with torch.cuda.amp.autocast():
+                                save_mesh(z=fixed_z[0].unsqueeze(0).to(device), generator=generator_ddp.module, output_dir=opt.output_dir, step=discriminator.step)
 
                     with torch.no_grad():
                         with torch.cuda.amp.autocast():

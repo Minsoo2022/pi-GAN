@@ -86,7 +86,7 @@ CelebA = {
     0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
-    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/celeba_cropped_no_split/*.jpg',
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/img_align_celeba/*.jpg',
     'fov': 12,
     'ray_start': 0.88,
     'ray_end': 1.12,
@@ -192,6 +192,77 @@ SynFACE = {
     'eval_last_back': True,
 }
 
+SynFACE_re = {
+    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    int(200e3): {},
+
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface/*/image/*.png',
+    'fov': 12,
+    'ray_start': 0.88,
+    'ray_end': 1.12,
+    'fade_steps': 10000,
+    'h_stddev': 0.3,
+    'v_stddev': 0.155,
+    'h_mean': math.pi*0.5,
+    'v_mean': math.pi*0.5,
+    'sample_dist': 'gaussian',
+    'topk_interval': 2000,
+    'topk_v': 0.6,
+    'betas': (0, 0.9),
+    'unique_lr': False,
+    'weight_decay': 0,
+    'r1_lambda': 0.2,
+    'latent_dim': 256,
+    'grad_clip': 10,
+    'model': 'SPATIALSIRENBASELINE',
+    'generator': 'ImplicitGenerator3d',
+    'discriminator': 'CCSEncoderDiscriminator',
+    'dataset': 'Synface_re',
+    'clamp_mode': 'relu',
+    'z_dist': 'gaussian',
+    'hierarchical_sample': True,
+    'z_lambda': 0,
+    'pos_lambda': 15,
+    'last_back': False,
+    'eval_last_back': True,
+}
+
+
+SynFACE_re_nopose = {
+    0: {'batch_size': 28 * 2, 'num_steps': 12, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    int(200e3): {},
+
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface/*/image/*.png',
+    'fov': 12,
+    'ray_start': 0.88,
+    'ray_end': 1.12,
+    'fade_steps': 10000,
+    'h_stddev': 0.3,
+    'v_stddev': 0.155,
+    'h_mean': math.pi*0.5,
+    'v_mean': math.pi*0.5,
+    'sample_dist': 'gaussian',
+    'topk_interval': 2000,
+    'topk_v': 0.6,
+    'betas': (0, 0.9),
+    'unique_lr': False,
+    'weight_decay': 0,
+    'r1_lambda': 0.2,
+    'latent_dim': 256,
+    'grad_clip': 10,
+    'model': 'SPATIALSIRENBASELINE',
+    'generator': 'ImplicitGenerator3d',
+    'discriminator': 'CCSEncoderDiscriminator',
+    'dataset': 'Synface_re',
+    'clamp_mode': 'relu',
+    'z_dist': 'gaussian',
+    'hierarchical_sample': True,
+    'z_lambda': 0,
+    'pos_lambda': 0,
+    'last_back': False,
+    'eval_last_back': True,
+}
+
 SynFACE_200 = {
     0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
@@ -226,6 +297,42 @@ SynFACE_200 = {
     'last_back': False,
     'eval_last_back': True,
 }
+
+SynFACE_140 = {
+    0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    int(200e3): {},
+
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface_aligned/*/image/*.png',
+    'fov': 10,
+    'ray_start': 0.8,
+    'ray_end': 1.2,
+    'fade_steps': 10000,
+    'h_stddev': 0.5,
+    'v_stddev': 0.3,
+    'h_mean': math.pi*0.5,
+    'v_mean': math.pi*0.5,  # pi/2 - 1, pi/2 + 1,   0.57~2.57
+    'sample_dist': 'gaussian',
+    'topk_interval': 2000,
+    'topk_v': 0.6,
+    'betas': (0, 0.9),
+    'unique_lr': False,
+    'weight_decay': 0,
+    'r1_lambda': 0.2,
+    'latent_dim': 256,
+    'grad_clip': 10,
+    'model': 'SPATIALSIRENBASELINE',
+    'generator': 'ImplicitGenerator3d',
+    'discriminator': 'CCSEncoderDiscriminator',
+    'dataset': 'SynfaceCropped140',
+    'clamp_mode': 'relu',
+    'z_dist': 'gaussian',
+    'hierarchical_sample': True,
+    'z_lambda': 0,
+    'pos_lambda': 15,
+    'last_back': False,
+    'eval_last_back': True,
+}
+
 
 CARLA = {
     # 0: {'batch_size': 10, 'num_steps': 48, 'img_size': 32, 'batch_split': 3, 'gen_lr': 4e-5, 'disc_lr': 4e-4},
@@ -380,3 +487,55 @@ ex = {
     'pos_lambda': 0,
     'learnable_dist': False,
 }
+
+
+#################################################
+
+
+SynFACE_ori = {
+    # 0: {'batch_size': 56, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    # int(10e3): {'batch_size': 32, 'num_steps': 24, 'img_size': 64, 'batch_split': 4, 'gen_lr': 2e-5, 'disc_lr': 2e-4},
+    # int(55e3): {'batch_size': 12, 'num_steps': 24, 'img_size': 128, 'batch_split': 6, 'gen_lr': 10e-6,
+    #             'disc_lr': 10e-5},
+    int(200e3): {},
+    'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/synface/*/image/*.png',
+    'fov': 12,
+    'ray_start': 0.88,
+    'ray_end': 1.12,
+    'fade_steps': 10000,
+    # 'h_stddev': 1,
+    # 'v_stddev': 1,
+    'h_mean': math.pi*0.5,
+    'v_mean': math.pi*0.5,
+    'sample_dist': 'gaussian',
+    'topk_interval': 2000,
+    'topk_v': 0.6,
+    'betas': (0, 0.9),
+    'unique_lr': False,
+    'weight_decay': 0,
+    'r1_lambda': 0.2,
+    'latent_dim': 256,
+    'grad_clip': 10,
+    'model': 'SPATIALSIRENBASELINE',
+    'generator': 'ImplicitGenerator3d',
+    'discriminator': 'CCSEncoderDiscriminator',
+    'dataset': 'Synface_re',#SynfaceCropped
+    'clamp_mode': 'relu',
+    'z_dist': 'gaussian',
+    'hierarchical_sample': True,
+    'z_lambda': 0,
+    # 'pos_lambda': 15,
+    'last_back': False,
+    'eval_last_back': True,
+}
+
+SynFACE_ori2 = { # v100 446 / a100 344
+    0: {'batch_size': 56, 'num_steps': 12, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    # 'fov': 12,
+    'h_stddev': 0.3,
+    'v_stddev': 0.155,
+    # 'sample_dist': 'gaussian',
+    'pos_lambda': 15,
+    'dataset': 'Synface_re',
+}
+SynFACE_ori2.update(SynFACE_ori)
