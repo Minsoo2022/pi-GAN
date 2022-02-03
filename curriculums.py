@@ -375,7 +375,7 @@ CARLA = {
 
 
 CATS = {
-    0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 2, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
+    0: {'batch_size': 28, 'num_steps': 24, 'img_size': 64, 'batch_split': 4, 'gen_lr': 6e-5, 'disc_lr': 2e-4},
     int(200e3): {},
 
     'dataset_path': '/home/nas1_temp/minsoolee/3Dmining/dataset/cats_bigger_than_128x128/*.jpg',

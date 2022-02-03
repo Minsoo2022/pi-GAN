@@ -117,7 +117,7 @@ class TALLSIREN(nn.Module):
         ])
         self.final_layer = nn.Linear(hidden_dim, 1)
 
-        self.color_layer_sine = FiLMLayer(hidden_dim + 3, hidden_dim)
+        self.color_layer_sine = FiLMLayer(hidden_dim, hidden_dim)
         self.color_layer_linear = nn.Sequential(nn.Linear(hidden_dim, 3), nn.Sigmoid())
 
         self.mapping_network = CustomMappingNetwork(z_dim, 256, (len(self.network) + 1)*hidden_dim*2)
@@ -143,7 +143,7 @@ class TALLSIREN(nn.Module):
             x = layer(x, frequencies[..., start:end], phase_shifts[..., start:end])
 
         sigma = self.final_layer(x)
-        rbg = self.color_layer_sine(torch.cat([ray_directions, x], dim=-1), frequencies[..., -self.hidden_dim:], phase_shifts[..., -self.hidden_dim:])
+        rbg = self.color_layer_sine(x, frequencies[..., -self.hidden_dim:], phase_shifts[..., -self.hidden_dim:])
         rbg = self.color_layer_linear(rbg)
 
         return torch.cat([rbg, sigma], dim=-1)
@@ -180,7 +180,7 @@ class SPATIALSIRENBASELINE(nn.Module):
         ])
         self.final_layer = nn.Linear(hidden_dim, 1)
         
-        self.color_layer_sine = FiLMLayer(hidden_dim + 3, hidden_dim)
+        self.color_layer_sine = FiLMLayer(hidden_dim, hidden_dim)
         self.color_layer_linear = nn.Sequential(nn.Linear(hidden_dim, 3))
         
         self.mapping_network = CustomMappingNetwork(z_dim, 256, (len(self.network) + 1)*hidden_dim*2)
@@ -209,7 +209,7 @@ class SPATIALSIRENBASELINE(nn.Module):
             x = layer(x, frequencies[..., start:end], phase_shifts[..., start:end])
         
         sigma = self.final_layer(x)
-        rbg = self.color_layer_sine(torch.cat([ray_directions, x], dim=-1), frequencies[..., -self.hidden_dim:], phase_shifts[..., -self.hidden_dim:])
+        rbg = self.color_layer_sine(x, frequencies[..., -self.hidden_dim:], phase_shifts[..., -self.hidden_dim:])
         rbg = torch.sigmoid(self.color_layer_linear(rbg))
         
         return torch.cat([rbg, sigma], dim=-1)
